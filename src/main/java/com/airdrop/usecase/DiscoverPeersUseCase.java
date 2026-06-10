@@ -17,7 +17,7 @@ public class DiscoverPeersUseCase implements PeerDiscoveryListener {
     private final NetworkGateway networkGateway;
     private final ScheduledExecutorService scheduler;
     private final Clock clock;
-    
+
     private final Map<String, Peer> activePeers = new ConcurrentHashMap<>();
 
     public DiscoverPeersUseCase(NetworkGateway networkGateway, ScheduledExecutorService scheduler, Clock clock) {
