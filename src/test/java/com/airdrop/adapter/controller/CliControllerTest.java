@@ -352,13 +352,11 @@ class CliControllerTest {
         }
 
         @Test
-        @DisplayName("指向資料夾應顯示「不支援資料夾傳送」")
-        void directory_showsDirectoryError(@TempDir Path tempDir) {
+        @DisplayName("指向資料夾應該順利呼叫 UseCase 進行傳送")
+        void directory_callsUseCase(@TempDir Path tempDir) {
             controller.sendFile("192.168.1.1:8080", tempDir.toString());
-            assertTrue(output().contains("[錯誤]"));
-            assertTrue(output().contains("資料夾"),
-                    "應說明不支援資料夾傳送。實際輸出：\n" + output());
-            assertNull(sendSpy.lastIp);
+            assertEquals("192.168.1.1", sendSpy.lastIp,
+                    "指向資料夾應該成功解析 IP 並呼叫 UseCase");
         }
 
         @Test

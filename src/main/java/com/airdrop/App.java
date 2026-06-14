@@ -176,7 +176,33 @@ public class App {
             public void onProgressUpdated(FileTask task) {
                 if (task == null) return;
                 if (task.getStatus() == FileTask.Status.COMPLETED) {
-                    System.out.printf("%n[✓] 已接收完成：%s%n", task.getFilePath());
+                    if (task.isDirectory()) {
+                        System.out.printf("%n[✓] 已接收資料夾壓縮檔：%s%n", task.getFilePath());
+                        System.out.printf("[*] 正在背景自動解壓縮資料夾...%n");
+                        
+                        // 啟動背景執行緒進行解壓縮，避免阻塞 Netty IO Thread
+                        new Thread(() -> {
+                            try {
+                                java.io.File zipFile = new java.io.File(task.getFilePath());
+                                // 移除 .zip 副檔名作為目標資料夾名稱
+                                String targetDirName = task.getFileName();
+                                if (targetDirName.toLowerCase().endsWith(".zip")) {
+                                    targetDirName = targetDirName.substring(0, targetDirName.length() - 4);
+                                }
+                                java.io.File destDir = new java.io.File("./downloaded_" + targetDirName);
+                                
+                                com.airdrop.infrastructure.util.ZipUtil.unzip(zipFile, destDir);
+                                zipFile.delete(); // 解壓縮成功後刪除暫存的 zip 檔
+                                
+                                System.out.printf("%n[✓] 資料夾解壓縮完成，已儲存至：%s%nairdrop> ", destDir.getAbsolutePath());
+                            } catch (Exception e) {
+                                System.err.printf("%n[✗] 資料夾解壓縮失敗：%s%nairdrop> ", e.getMessage());
+                            }
+                        }, "unzip-thread").start();
+                        
+                    } else {
+                        System.out.printf("%n[✓] 已接收完成：%s%n", task.getFilePath());
+                    }
                 } else {
                     int percent = (int) (task.getProgress() * 100);
                     System.out.printf("\r[接收中] %s  %d%%", task.getFileName(), percent);

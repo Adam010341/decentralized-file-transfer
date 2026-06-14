@@ -163,7 +163,8 @@ public class NettyClient {
             }
 
             // 1. Send metadata frame: [4-byte length][Metadata String]
-            String metadata = task.getId() + "|" + task.getFileName() + "|" + file.length() + "|" + localPeerName;
+            String typeMark = task.isDirectory() ? "DIR" : "FILE";
+            String metadata = task.getId() + "|" + task.getFileName() + "|" + file.length() + "|" + localPeerName + "|" + typeMark;
             byte[] metadataBytes = metadata.getBytes(StandardCharsets.UTF_8);
             
             ByteBuf headerBuf = ctx.alloc().buffer(4 + metadataBytes.length);

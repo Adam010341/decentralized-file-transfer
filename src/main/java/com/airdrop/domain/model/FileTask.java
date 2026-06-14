@@ -13,6 +13,8 @@ public class FileTask {
     private long bytesTransferred;
     private Status status;
 
+    private boolean isDirectory;
+
     public enum Status {
         WAITING,
         RUNNING,
@@ -31,6 +33,17 @@ public class FileTask {
         this.fileSize = fileSize;
         this.bytesTransferred = 0;
         this.status = Status.WAITING;
+        this.isDirectory = false;
+    }
+    
+    public FileTask(String id, String filePath, String fileName, long fileSize, boolean isDirectory) {
+        this.id = id;
+        this.filePath = filePath;
+        this.fileName = fileName;
+        this.fileSize = fileSize;
+        this.bytesTransferred = 0;
+        this.status = Status.WAITING;
+        this.isDirectory = isDirectory;
     }
 
     public String getId() {
@@ -81,6 +94,14 @@ public class FileTask {
         this.status = status;
     }
 
+    public boolean isDirectory() {
+        return isDirectory;
+    }
+
+    public void setDirectory(boolean directory) {
+        isDirectory = directory;
+    }
+
     public double getProgress() {
         if (fileSize <= 0) return 0.0;
         return (double) bytesTransferred / fileSize;
@@ -91,12 +112,12 @@ public class FileTask {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         FileTask fileTask = (FileTask) o;
-        return Objects.equals(id, fileTask.id);
+        return java.util.Objects.equals(id, fileTask.id);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id);
+        return java.util.Objects.hash(id);
     }
 
     @Override
@@ -105,6 +126,7 @@ public class FileTask {
                 "id='" + id + '\'' +
                 ", fileName='" + fileName + '\'' +
                 ", fileSize=" + fileSize +
+                ", isDirectory=" + isDirectory +
                 ", progress=" + String.format("%.2f%%", getProgress() * 100) +
                 ", status=" + status +
                 '}';
