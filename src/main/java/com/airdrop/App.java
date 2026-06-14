@@ -113,12 +113,21 @@ public class App {
             System.out.println("👉 輸入 exit 或 quit 離開");
             System.out.println("=================================================");
             
-            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            java.io.Console console = System.console();
+            java.util.Scanner scanner = (console == null) ? new java.util.Scanner(System.in) : null;
+
             while (true) {
-                System.out.print("\nairdrop> ");
-                if (!scanner.hasNextLine()) break;
+                String line;
+                if (console != null) {
+                    line = console.readLine("\nairdrop> ");
+                    if (line == null) break;
+                } else {
+                    System.out.print("\nairdrop> ");
+                    if (!scanner.hasNextLine()) break;
+                    line = scanner.nextLine();
+                }
                 
-                String line = scanner.nextLine().trim();
+                line = line.trim();
                 if (line.isEmpty()) continue;
                 if (line.equalsIgnoreCase("exit") || line.equalsIgnoreCase("quit")) {
                     break;
