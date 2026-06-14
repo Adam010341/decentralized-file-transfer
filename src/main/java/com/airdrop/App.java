@@ -99,10 +99,42 @@ public class App {
 
         // ── Step 4: 建立 CLI 外層，執行指令 ──────────────────────────────────
         PicocliRunner runner = new PicocliRunner(cliController);
-        int exitCode = runner.run(args);
-
-        // System.exit 集中在此，讓 PicocliRunner 可被單元測試
-        System.exit(exitCode);
+        
+        if (args != null && args.length > 0) {
+            // 單次執行模式：執行指令後結束
+            int exitCode = runner.run(args);
+            System.exit(exitCode);
+        } else {
+            // 互動式常駐模式 (REPL)：保持執行，等待並處理指令
+            System.out.println("\n=================================================");
+            System.out.println("🚀 歡迎使用 AirDrop P2P 檔案傳輸");
+            System.out.println("✅ 程式已進入「常駐監聽模式」，此時別人可以發現你並傳送檔案。");
+            System.out.println("👉 請直接輸入指令 (例如: discover, list, send -p IP:Port -f 檔案)");
+            System.out.println("👉 輸入 exit 或 quit 離開");
+            System.out.println("=================================================");
+            
+            java.util.Scanner scanner = new java.util.Scanner(System.in);
+            while (true) {
+                System.out.print("\nairdrop> ");
+                if (!scanner.hasNextLine()) break;
+                
+                String line = scanner.nextLine().trim();
+                if (line.isEmpty()) continue;
+                if (line.equalsIgnoreCase("exit") || line.equalsIgnoreCase("quit")) {
+                    break;
+                }
+                
+                // 簡易參數解析，支援雙引號包覆的檔案路徑
+                java.util.List<String> cmdArgsList = new java.util.ArrayList<>();
+                java.util.regex.Matcher m = java.util.regex.Pattern.compile("([^\"]\\S*|\".+?\")\\s*").matcher(line);
+                while (m.find()) {
+                    cmdArgsList.add(m.group(1).replace("\"", ""));
+                }
+                
+                runner.run(cmdArgsList.toArray(new String[0]));
+            }
+            System.exit(0);
+        }
     }
 
     /**
