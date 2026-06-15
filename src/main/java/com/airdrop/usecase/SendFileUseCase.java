@@ -29,9 +29,10 @@ public class SendFileUseCase {
                 break;
             }
         }
-        
+
         if (targetPeer == null) {
-            throw new IllegalArgumentException("Target IP " + targetIp + " is not in the active peer registry or has timed out.");
+            throw new IllegalArgumentException(
+                    "Target IP " + targetIp + " is not in the active peer registry or has timed out.");
         }
 
         // Step B: File Validation
