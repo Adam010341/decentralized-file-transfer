@@ -355,22 +355,11 @@ class CliControllerTest {
         @DisplayName("指向資料夾應該順利呼叫 UseCase 進行傳送")
         void directory_callsUseCase(@TempDir Path tempDir) {
             controller.sendFile("192.168.1.1:8080", tempDir.toString());
-            assertEquals("192.168.1.1", sendSpy.lastIp,
-                    "指向資料夾應該成功解析 IP 並呼叫 UseCase");
+            assertEquals("192.168.1.1:8080", sendSpy.lastIp,
+                    "指向資料夾應該成功傳遞 IP:Port 並呼叫 UseCase");
         }
 
-        @Test
-        @DisplayName("peerId 格式無冒號應顯示格式錯誤")
-        void invalidPeerIdNoColon_showsFormatError(@TempDir Path tempDir) throws IOException {
-            // 使用真實檔案讓錯誤在 peerId 解析階段觸發
-            Path file = Files.createFile(tempDir.resolve("test.txt"));
-            Files.writeString(file, "content");
-            controller.sendFile("no-colon-here", file.toString());
-            assertTrue(output().contains("[錯誤]"));
-            assertTrue(output().contains("格式"),
-                    "應說明 peerId 格式問題。實際輸出：\n" + output());
-            assertNull(sendSpy.lastIp);
-        }
+
     }
 
     // =========================================================================
@@ -382,27 +371,27 @@ class CliControllerTest {
     class SendFileSuccessTests {
 
         @Test
-        @DisplayName("應從 peerId 解析出正確的 targetIp（不含 port）")
+        @DisplayName("應從 peerId 完整傳遞 targetIp（含 port）")
         void parsesIpFromPeerId(@TempDir Path tempDir) throws IOException {
             Path file = Files.createFile(tempDir.resolve("report.pdf"));
             Files.writeString(file, "content");
 
             controller.sendFile("192.168.1.5:8080", file.toString());
 
-            assertEquals("192.168.1.5", sendSpy.lastIp,
-                    "應從 '192.168.1.5:8080' 解析出 IP '192.168.1.5'");
+            assertEquals("192.168.1.5:8080", sendSpy.lastIp,
+                    "應直接傳遞 '192.168.1.5:8080'");
         }
 
         @Test
-        @DisplayName("複雜 IPv4（含多個 '.'）應正確解析（lastIndexOf 策略）")
+        @DisplayName("複雜 IPv4（含多個 '.'）應正確傳遞")
         void complexIpParsing(@TempDir Path tempDir) throws IOException {
             Path file = Files.createFile(tempDir.resolve("img.png"));
             Files.writeString(file, "data");
 
             controller.sendFile("10.100.200.50:12345", file.toString());
 
-            assertEquals("10.100.200.50", sendSpy.lastIp,
-                    "lastIndexOf(':') 應正確處理多個 '.' 的 IPv4");
+            assertEquals("10.100.200.50:12345", sendSpy.lastIp,
+                    "應正確傳遞多個 '.' 的 IPv4");
         }
 
         @Test

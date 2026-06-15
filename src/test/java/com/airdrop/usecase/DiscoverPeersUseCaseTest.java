@@ -45,13 +45,17 @@ public class DiscoverPeersUseCaseTest {
 
     @Test
     void testStop() {
+        java.util.concurrent.ScheduledFuture<?> future = mock(java.util.concurrent.ScheduledFuture.class);
+        when(scheduler.scheduleAtFixedRate(any(Runnable.class), eq(5L), eq(5L), eq(TimeUnit.SECONDS))).thenReturn((java.util.concurrent.ScheduledFuture)future);
+        useCase.start();
+
         Peer peer = new Peer("NodeA", "192.168.1.10", 8080);
         when(clock.millis()).thenReturn(1000L);
         useCase.onPeerDiscovered(peer);
 
         useCase.stop();
         verify(networkGateway, times(1)).stopDiscovery();
-        verify(scheduler, times(1)).shutdown();
+        verify(future, times(1)).cancel(false);
         assertTrue(useCase.getActivePeers().isEmpty());
     }
 

@@ -97,6 +97,18 @@ public class App {
         CliController cliController =
                 new CliController(discoverPeersUseCase, sendFileUseCase);
 
+        // 啟動 GUI 介面 (與 CLI 同時執行)
+        javax.swing.SwingUtilities.invokeLater(() -> {
+            try {
+                javax.swing.UIManager.setLookAndFeel(javax.swing.UIManager.getSystemLookAndFeelClassName());
+            } catch (Exception e) {
+                // Ignore and use default look and feel
+            }
+            com.airdrop.adapter.controller.gui.AirDropGui gui = 
+                new com.airdrop.adapter.controller.gui.AirDropGui(discoverPeersUseCase, sendFileUseCase);
+            gui.setVisible(true);
+        });
+
         // ── Step 4: 建立 CLI 外層，執行指令 ──────────────────────────────────
         PicocliRunner runner = new PicocliRunner(cliController);
         
