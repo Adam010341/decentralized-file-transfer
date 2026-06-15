@@ -205,4 +205,95 @@ public class AirDropGui extends JFrame {
         targetComboBox.setEnabled(true);
         discoverButton.setEnabled(true);
     }
+
+    // --- Receiving Progress UI ---
+    private final java.util.Map<String, JDialog> receiveDialogs = new java.util.concurrent.ConcurrentHashMap<>();
+    private final java.util.Map<String, JProgressBar> receiveProgressBars = new java.util.concurrent.ConcurrentHashMap<>();
+
+    public FileTransferListener getReceivingListener() {
+        return new FileTransferListener() {
+            @Override
+            public void onProgressUpdated(FileTask task) {
+                SwingUtilities.invokeLater(() -> {
+                    String taskId = task.getId();
+                    JDialog dialog = receiveDialogs.get(taskId);
+                    JProgressBar pBar = receiveProgressBars.get(taskId);
+
+                    if (dialog == null) {
+                        dialog = new JDialog(AirDropGui.this, "Receiving File", false);
+                        dialog.setSize(350, 120);
+                        dialog.setLocationRelativeTo(AirDropGui.this);
+                        dialog.setLayout(new BorderLayout(10, 10));
+                        
+                        JLabel nameLabel = new JLabel(" Receiving: " + task.getFileName());
+                        nameLabel.setFont(new Font("SansSerif", Font.BOLD, 14));
+                        dialog.add(nameLabel, BorderLayout.NORTH);
+
+                        pBar = new JProgressBar(0, 100);
+                        pBar.setStringPainted(true);
+                        pBar.setPreferredSize(new Dimension(300, 30));
+                        
+                        JPanel centerPanel = new JPanel();
+                        centerPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+                        centerPanel.add(pBar);
+                        dialog.add(centerPanel, BorderLayout.CENTER);
+
+                        receiveDialogs.put(taskId, dialog);
+                        receiveProgressBars.put(taskId, pBar);
+                        dialog.setVisible(true);
+                    }
+
+                    long total = task.getFileSize();
+                    long transferred = task.getBytesTransferred();
+                    if (total > 0) {
+                        int percent = (int) ((double) transferred / total * 100);
+                        pBar.setValue(percent);
+                        pBar.setString(percent + "%");
+                    }
+
+                    if (transferred >= total || task.getStatus() == FileTask.Status.COMPLETED) {
+                        pBar.setValue(100);
+                        pBar.setString("Completed");
+                        
+                        // Wait a bit before closing
+                        Timer closeTimer = new Timer(1500, e -> {
+                            JDialog d = receiveDialogs.remove(taskId);
+                            if (d != null) {
+                                d.dispose();
+                            }
+                            receiveProgressBars.remove(taskId);
+                        });
+                        closeTimer.setRepeats(false);
+                        closeTimer.start();
+                    }
+                });
+            }
+
+            @Override
+            public void onError(FileTask task, String errorMessage) {
+                SwingUtilities.invokeLater(() -> {
+                    String taskId = task.getId();
+                    JProgressBar pBar = receiveProgressBars.get(taskId);
+                    if (pBar != null) {
+                        pBar.setString("Failed");
+                        pBar.setForeground(Color.RED);
+                    }
+                    JOptionPane.showMessageDialog(AirDropGui.this, 
+                            "Error receiving " + task.getFileName() + ": " + errorMessage, 
+                            "Receive Error", JOptionPane.ERROR_MESSAGE);
+                            
+                    // Close dialog on error
+                    Timer closeTimer = new Timer(3000, e -> {
+                        JDialog d = receiveDialogs.remove(taskId);
+                        if (d != null) {
+                            d.dispose();
+                        }
+                        receiveProgressBars.remove(taskId);
+                    });
+                    closeTimer.setRepeats(false);
+                    closeTimer.start();
+                });
+            }
+        };
+    }
 }
