@@ -42,6 +42,7 @@ public class NettyClient {
         b.group(workerGroup)
          .channel(NioDatagramChannel.class)
          .option(ChannelOption.SO_REUSEADDR, true)
+         .option(ChannelOption.SO_BROADCAST, true)
          .handler(new ChannelInboundHandlerAdapter()); // Dummy handler
 
         NetworkInterface ni = findMulticastInterface();
@@ -57,8 +58,30 @@ public class NettyClient {
             try {
                 String message = "AIRDROP_PING:" + localPeerName + ":" + tcpPort;
                 ByteBuf buf = Unpooled.copiedBuffer(message, CharsetUtil.UTF_8);
-                DatagramPacket packet = new DatagramPacket(buf, new InetSocketAddress(MULTICAST_IP, MULTICAST_PORT));
-                udpChannel.writeAndFlush(packet);
+                
+                // 1. Send Multicast (For normal home networks)
+                DatagramPacket packet = new DatagramPacket(buf.retainedDuplicate(), new InetSocketAddress(MULTICAST_IP, MULTICAST_PORT));
+                udpChannel.write(packet);
+
+                // 2. Send Broadcast to all active interfaces (For restricted school/public networks)
+                java.util.Enumeration<NetworkInterface> interfaces = NetworkInterface.getNetworkInterfaces();
+                while (interfaces.hasMoreElements()) {
+                    NetworkInterface networkInterface = interfaces.nextElement();
+                    if (!networkInterface.isUp() || networkInterface.isLoopback()) continue;
+                    
+                    for (java.net.InterfaceAddress interfaceAddress : networkInterface.getInterfaceAddresses()) {
+                        java.net.InetAddress broadcast = interfaceAddress.getBroadcast();
+                        if (broadcast != null) {
+                            DatagramPacket broadcastPacket = new DatagramPacket(buf.retainedDuplicate(), new InetSocketAddress(broadcast, MULTICAST_PORT));
+                            udpChannel.write(broadcastPacket);
+                        }
+                    }
+                }
+                
+                // 3. Send to global broadcast 255.255.255.255 just in case
+                DatagramPacket globalBroadcastPacket = new DatagramPacket(buf, new InetSocketAddress("255.255.255.255", MULTICAST_PORT));
+                udpChannel.writeAndFlush(globalBroadcastPacket);
+                
             } catch (Exception e) {
                 e.printStackTrace();
             }
