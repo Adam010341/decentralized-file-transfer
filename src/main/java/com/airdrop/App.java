@@ -156,7 +156,14 @@ public class App {
                     if (line == null) break;
                 } else {
                     System.out.print("\nairdrop> ");
-                    if (!scanner.hasNextLine()) break;
+                    if (!scanner.hasNextLine()) {
+                        // 沒有終端機輸入串流（例如以 jpackage 打包的純 GUI 應用程式），讓 Main Thread 進入休眠，保持 GUI 存活
+                        try {
+                            Thread.sleep(Long.MAX_VALUE);
+                        } catch (InterruptedException e) {
+                            break;
+                        }
+                    }
                     line = scanner.nextLine();
                 }
                 
