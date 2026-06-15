@@ -75,8 +75,8 @@ public class NettyNetworkGateway implements NetworkGateway {
     }
 
     @Override
-    public void sendFile(Peer target, FileTask task) {
-        client.sendFile(localPeerName, target, task, fileTransferListener);
+    public void sendFile(Peer target, FileTask task, FileTransferListener listener) {
+        client.sendFile(localPeerName, target, task, listener);
     }
 
     public void cancelTransfer(String taskId) {

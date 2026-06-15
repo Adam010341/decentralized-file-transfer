@@ -92,8 +92,8 @@ public class NettyTest {
 
         CountDownLatch sendLatch = new CountDownLatch(1);
 
-        // Setup global listener for sender (Gateway 1)
-        gateway1.setFileTransferListener(new FileTransferListener() {
+        // Start Sender (Gateway 1)
+        gateway1.sendFile(target, task, new FileTransferListener() {
             @Override
             public void onProgressUpdated(FileTask task) {
                 if (task.getBytesTransferred() >= task.getFileSize()) {
@@ -108,9 +108,6 @@ public class NettyTest {
                 sendLatch.countDown();
             }
         });
-
-        // Start Sender (Gateway 1)
-        gateway1.sendFile(target, task);
 
         assertTrue(sendLatch.await(5, TimeUnit.SECONDS), "File sending should complete within 5 seconds");
         assertTrue(receiveLatch.await(5, TimeUnit.SECONDS), "File receiving should complete within 5 seconds");

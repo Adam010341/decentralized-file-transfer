@@ -1,6 +1,5 @@
 # Maven build output
 target/
-*.dat
 
 # Compiled class file
 *.class
@@ -26,10 +25,3 @@ target/
 # virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
 hs_err_pid*
 replay_pid*
-
-# Eclipse / VS Code Java settings
-.settings/
-bin/
-.classpath
-.project
-.vscode/

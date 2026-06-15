@@ -166,8 +166,8 @@ public class NettyServer {
 
                         // Switch pipeline to file receiving mode
                         metadataReceived = true;
-                        ctx.pipeline().remove(LengthFieldBasedFrameDecoder.class);
                         ctx.pipeline().addLast(new FileWriteHandler(listener, task));
+                        ctx.pipeline().remove(LengthFieldBasedFrameDecoder.class);
                         ctx.pipeline().remove(this);
                     }
                 } finally {
