@@ -198,10 +198,7 @@ public class CliController {
             return;
         }
 
-        if (file.isDirectory()) {
-            out.println("[錯誤] 指定路徑為資料夾，請提供完整的檔案路徑（不支援資料夾傳送）：" + file.getAbsolutePath());
-            return;
-        }
+
 
         if (!file.canRead()) {
             out.println("[錯誤] 無法讀取檔案（請確認權限）：" + file.getAbsolutePath());

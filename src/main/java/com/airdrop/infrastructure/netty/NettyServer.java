@@ -149,17 +149,24 @@ public class NettyServer {
                 ByteBuf buf = (ByteBuf) msg;
                 try {
                     String metadata = buf.toString(StandardCharsets.UTF_8);
-                    // Format: taskId|fileName|fileSize|senderName
+                    // Format: taskId|fileName|fileSize|senderName|typeMark
                     String[] parts = metadata.split("\\|");
                     if (parts.length >= 4) {
                         String taskId = parts[0];
                         String fileName = parts[1];
                         long fileSize = Long.parseLong(parts[2]);
                         String senderName = parts[3];
+                        
+                        boolean isDirectory = false;
+                        if (parts.length >= 5 && "DIR".equals(parts[4])) {
+                            isDirectory = true;
+                        }
 
                         Peer sender = new Peer(senderName, ((InetSocketAddress)ctx.channel().remoteAddress()).getAddress().getHostAddress(), 0);
                         
                         FileTask task = new FileTask(taskId, fileName, "./downloaded_" + fileName, fileSize);
+                        task.setDirectory(isDirectory);
+                        
                         if (listener != null) {
                             listener.onProgressUpdated(task);
                         }
@@ -224,6 +231,15 @@ public class NettyServer {
             } else {
                 if (listener != null) {
                     listener.onError(task, "Connection closed before fully receiving file.");
+                }
+                // 傳輸意外中斷，刪除尚未接收完整的損壞檔案
+                try {
+                    java.io.File incompleteFile = new java.io.File(task.getFilePath());
+                    if (incompleteFile.exists() && incompleteFile.delete()) {
+                        System.out.printf("%n[清理] 已刪除未完成的檔案：%s%nairdrop> ", incompleteFile.getName());
+                    }
+                } catch (Exception e) {
+                    System.err.printf("%n[錯誤] 無法刪除未完成的檔案：%s%nairdrop> ", e.getMessage());
                 }
             }
             super.channelInactive(ctx);
