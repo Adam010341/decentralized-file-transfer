@@ -300,7 +300,7 @@ public class CliController {
         out.printf("共發現 %d 台裝置。使用 peerId 執行傳送指令，例如：%n", peers.size());
         if (!peers.isEmpty()) {
             Peer example = peers.get(0);
-            out.printf("  send %s /path/to/file%n", buildPeerId(example));
+            out.printf("  send -p %s -f \"/path/to/file\"%n", buildPeerId(example));
         }
         out.println();
     }
