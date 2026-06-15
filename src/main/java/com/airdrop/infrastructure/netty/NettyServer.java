@@ -64,6 +64,7 @@ public class NettyServer {
         b.group(workerGroup)
          .channel(NioDatagramChannel.class)
          .option(ChannelOption.SO_REUSEADDR, true)
+         .option(ChannelOption.SO_BROADCAST, true)
          .handler(new SimpleChannelInboundHandler<DatagramPacket>() {
              @Override
              protected void channelRead0(ChannelHandlerContext ctx, DatagramPacket packet) {
