@@ -26,14 +26,20 @@ public class DiscoverPeersUseCase implements PeerDiscoveryListener {
         this.clock = clock;
     }
 
+    private java.util.concurrent.ScheduledFuture<?> evictTask;
+
     public void start() {
         networkGateway.startDiscovery(this);
-        scheduler.scheduleAtFixedRate(this::evictStalePeers, 5, 5, TimeUnit.SECONDS);
+        if (evictTask == null || evictTask.isCancelled()) {
+            evictTask = scheduler.scheduleAtFixedRate(this::evictStalePeers, 5, 5, TimeUnit.SECONDS);
+        }
     }
 
     public void stop() {
         networkGateway.stopDiscovery();
-        scheduler.shutdown();
+        if (evictTask != null) {
+            evictTask.cancel(false);
+        }
         activePeers.clear();
     }
 

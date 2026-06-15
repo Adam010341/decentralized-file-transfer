@@ -379,13 +379,8 @@ public class CliController {
      * @return IP 位址字串，格式錯誤時回傳 null
      */
     private String parsePeerIp(String peerId) {
-        if (peerId == null)
-            return null;
-        int separatorIndex = peerId.lastIndexOf(PEER_ID_SEPARATOR);
-        if (separatorIndex <= 0)
-            return null;
-        String ip = peerId.substring(0, separatorIndex).trim();
-        return ip.isEmpty() ? null : ip;
+        if (peerId == null) return null;
+        return peerId; // 保留 IP:Port 格式，交給 UseCase 進行精確比對
     }
 
     /**

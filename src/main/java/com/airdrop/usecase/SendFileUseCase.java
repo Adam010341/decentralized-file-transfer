@@ -19,12 +19,13 @@ public class SendFileUseCase {
         this.discoverPeersUseCase = discoverPeersUseCase;
     }
 
-    public void execute(String targetIp, String filePath, FileTransferListener listener) {
+    public void execute(String peerId, String filePath, FileTransferListener listener) {
         // Step A: Peer Validation
         List<Peer> activePeers = discoverPeersUseCase.getActivePeers();
         Peer targetPeer = null;
         for (Peer peer : activePeers) {
-            if (peer.getIp().equals(targetIp)) {
+            String currentPeerId = peer.getIp() + ":" + peer.getPort();
+            if (currentPeerId.equals(peerId) || peer.getIp().equals(peerId)) {
                 targetPeer = peer;
                 break;
             }
@@ -32,7 +33,7 @@ public class SendFileUseCase {
 
         if (targetPeer == null) {
             throw new IllegalArgumentException(
-                    "Target IP " + targetIp + " is not in the active peer registry or has timed out.");
+                    "Target " + peerId + " is not in the active peer registry or has timed out.");
         }
 
         // Step B: File Validation

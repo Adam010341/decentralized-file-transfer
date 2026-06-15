@@ -48,6 +48,9 @@ import java.util.concurrent.ScheduledExecutorService;
  */
 public class App {
 
+    // 儲存所有接收端的進度監聽器 (包含 CLI 與 GUI)
+    private static final java.util.List<FileTransferListener> receiveListeners = new java.util.concurrent.CopyOnWriteArrayList<>();
+
     public static void main(String[] args) {
 
         // ── Step 1: 建立 Infrastructure 層物件 ──────────────────────────────
@@ -57,8 +60,22 @@ public class App {
 
         // TCP Server：監聽接收端傳入的檔案（port 0 = 作業系統隨機分配）
         try {
-            // 設定接收檔案時的進度 listener（印至 stdout）
-            gateway.setFileTransferListener(buildReceiveListener());
+            // 設定接收檔案時的進度 listener（印至 stdout 及更新 GUI）
+            receiveListeners.add(buildReceiveListener()); // 加入預設的 CLI 輸出與解壓縮邏輯
+            gateway.setFileTransferListener(new FileTransferListener() {
+                @Override
+                public void onProgressUpdated(FileTask task) {
+                    for (FileTransferListener l : receiveListeners) {
+                        l.onProgressUpdated(task);
+                    }
+                }
+                @Override
+                public void onError(FileTask task, String errorMessage) {
+                    for (FileTransferListener l : receiveListeners) {
+                        l.onError(task, errorMessage);
+                    }
+                }
+            });
             gateway.startServer(0);
             System.out.println("[*] TCP Server 啟動，監聽 port " + gateway.getBoundTcpPort());
         } catch (IOException e) {
@@ -96,6 +113,22 @@ public class App {
         // ── Step 3: 建立 Adapter 層物件 ─────────────────────────────────────
         CliController cliController =
                 new CliController(discoverPeersUseCase, sendFileUseCase);
+
+        // 啟動 GUI 介面 (與 CLI 同時執行)
+        javax.swing.SwingUtilities.invokeLater(() -> {
+            try {
+                javax.swing.UIManager.setLookAndFeel(javax.swing.UIManager.getSystemLookAndFeelClassName());
+            } catch (Exception e) {
+                // Ignore and use default look and feel
+            }
+            com.airdrop.adapter.controller.gui.AirDropGui gui = 
+                new com.airdrop.adapter.controller.gui.AirDropGui(discoverPeersUseCase, sendFileUseCase);
+            
+            // 將 GUI 的接收進度監聽器註冊到背景任務中
+            receiveListeners.add(gui.getReceivingListener());
+            
+            gui.setVisible(true);
+        });
 
         // ── Step 4: 建立 CLI 外層，執行指令 ──────────────────────────────────
         PicocliRunner runner = new PicocliRunner(cliController);
