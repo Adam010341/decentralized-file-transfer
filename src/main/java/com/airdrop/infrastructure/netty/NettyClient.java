@@ -190,11 +190,13 @@ public class NettyClient {
                     activeTransfers.remove(task.getId());
                     if (future.isSuccess()) {
                         task.setBytesTransferred(file.length());
+                        task.setStatus(FileTask.Status.COMPLETED); // 修正：標記為完成
                         if (listener != null) {
                             listener.onProgressUpdated(task);
                         }
                         ctx.close(); // Close connection after sending completes
                     } else {
+                        task.setStatus(FileTask.Status.FAILED); // 修正：標記為失敗
                         if (listener != null) {
                             listener.onError(task, future.cause().getMessage());
                         }
