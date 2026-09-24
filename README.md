@@ -16,6 +16,81 @@ Built in Java 17 with [Netty](https://netty.io/) for asynchronous networking and
 
 A Windows desktop build with a Swing GUI is published as the [v1.0.0 release](https://github.com/Adam010341/decentralized-file-transfer/releases/tag/v1.0.0). It adds a graphical peer picker, progress bars and automatic zipping of folders. The GUI source lives on the `feat/DesktopApp` branch; `main` contains the command-line application described below.
 
+## How It Works
+
+Every node runs both halves of the protocol. At startup it opens a TCP server on an OS-assigned port and begins multicasting a heartbeat that advertises that port. When you run `discover`, it also joins the multicast group and starts filling its in-memory peer table. The diagram below shows the parts involved when Peer A sends a file to Peer B. Peer A also sends heartbeats, and Peer B can discover peers in the same way, but those parts are left out. Dotted arrows are UDP discovery traffic and the thick arrow is the TCP transfer.
+
+```mermaid
+flowchart TB
+    subgraph B["Peer B · receiving side shown"]
+        PUB["NettyClient<br/>heartbeat publisher"]
+        DEC["NettyServer TCP pipeline:<br/>LengthFieldBasedFrameDecoder"]
+        META["MetadataHandler"]
+        WRITE["FileWriteHandler"]
+        DISK[("received file")]
+        DEC -->|"metadata frame"| META
+        META -->|"swaps pipeline<br/>after header"| WRITE
+        WRITE -->|"FileChannel"| DISK
+    end
+
+    MC(("UDP multicast<br/>224.0.0.167:53333"))
+
+    subgraph A["Peer A · sending side shown"]
+        CLI["PicocliRunner<br/>discover · list · send"]
+        CTRL["CliController"]
+        UDPL["NettyServer<br/>UDP listener"]
+        REG["DiscoverPeersUseCase<br/>peer table ip:port → Peer<br/>drops peers silent > 10 s"]
+        SEND["SendFileUseCase"]
+        SENDER["NettyClient<br/>FileSenderHandler"]
+        CLI --> CTRL
+        CTRL -->|"discover, list"| REG
+        CTRL -->|"send"| SEND
+        UDPL -->|"onPeerDiscovered"| REG
+        SEND -->|"find peer by IP"| REG
+        SEND -->|"sendFile"| SENDER
+    end
+
+    PUB -.->|"AIRDROP_PING:name:tcpPort<br/>every 2 s"| MC
+    MC -.->|"joinGroup"| UDPL
+    SENDER ==>|"TCP to ip:tcpPort<br/>header, then file via<br/>DefaultFileRegion"| DEC
+```
+
+The sequence below follows one transfer from start to finish: discovery, choosing a peer from the list, the metadata header, the zero-copy file stream, and how each side decides that the transfer is finished. The IP address and port are example values. Byte-level formats are in [Wire Protocol](#wire-protocol), and the layer rules are in [Architecture](#architecture).
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as User (CLI)
+    participant R as DiscoverPeersUseCase
+    participant S as SendFileUseCase
+    participant N as NettyNetworkGateway
+    participant B as Peer B
+
+    Note over R,N: Peer A
+    Note over B: TCP server on port 0<br/>(OS picks, e.g. 40123)
+    U->>R: discover → start()
+    R->>N: startDiscovery(this)
+    Note over N: bind UDP :53333,<br/>join 224.0.0.167
+    loop every 2 s
+        B-)N: AIRDROP_PING:hostB:40123
+        N->>R: onPeerDiscovered(peer)
+    end
+    Note over R: key 192.168.1.5:40123,<br/>dropped if silent > 10 s
+    R-->>U: peer list (printed after 2 s)
+
+    U->>S: send -p 192.168.1.5:40123 -f a.pdf<br/>→ execute(ip, path, listener)
+    S->>R: getActivePeers(), match IP
+    S->>N: sendFile(peer, task)
+    N->>B: TCP connect 192.168.1.5:40123
+    N->>B: [4-byte length] taskId|a.pdf|size|hostA
+    Note over B: MetadataHandler parses header,<br/>swaps in FileWriteHandler
+    N->>B: file bytes, zero-copy<br/>(DefaultFileRegion)
+    N-->>U: onProgressUpdated(task) → progress bar
+    Note over N: all bytes written → COMPLETED<br/>(no ACK from the receiver)
+    N-xB: close connection
+    Note over B: on close: complete if all<br/>bytes arrived, else onError
+```
+
 ## Getting Started
 
 ### Prerequisites
