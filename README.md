@@ -7,7 +7,7 @@
 ![Tests](https://img.shields.io/badge/tests-JUnit%205%20%2B%20Mockito-25A162)
 ![License](https://img.shields.io/badge/license-MIT-2ea44f)
 
-A zero-configuration, peer-to-peer file transfer tool for local networks, in the spirit of AirDrop. Peers find each other automatically over UDP multicast and exchange files directly over TCP. There is no central server and no manual IP entry.
+A zero-configuration, peer-to-peer file transfer tool for local networks, in the spirit of AirDrop. Peers find each other automatically over UDP multicast and exchange files directly over TCP. There is no central server, and nothing to configure: you pick the receiver from the list of discovered peers.
 
 Built in Java 17 with [Netty](https://netty.io/) for asynchronous networking and [Picocli](https://picocli.info/) for the command-line interface. The code follows Clean Architecture. This was the final project for a Software Engineering course at National Cheng Kung University (NCKU).
 
@@ -15,7 +15,7 @@ Built in Java 17 with [Netty](https://netty.io/) for asynchronous networking and
 
 ## Features
 
-- **Automatic peer discovery.** Every node multicasts a heartbeat every 2 seconds. Peers that stay silent for more than 10 seconds are evicted from the active list.
+- **Automatic peer discovery.** Every node multicasts a heartbeat every 2 seconds. Peers not heard from for more than 10 seconds are dropped from the active list at the next check, which runs every 5 seconds.
 - **Direct TCP transfer with zero-copy I/O.** The sender streams the file with Netty's `DefaultFileRegion`, so on supported platforms the kernel moves the bytes straight from the file to the socket, without copying them into user space.
 - **Progress reporting on both ends.** The sender and the receiver both report live transfer progress.
 - **Two ways to run.** An interactive shell keeps the node online so others can discover it and send to it. A one-shot mode runs a single command and exits.
@@ -90,12 +90,12 @@ sequenceDiagram
     S->>N: sendFile(peer, task)
     N->>B: TCP connect 192.168.1.5:40123
     N->>B: [4-byte length] taskId|a.pdf|size|hostA
-    Note over B: MetadataHandler parses header,<br/>swaps in FileWriteHandler
+    Note over B: MetadataHandler parses header,<br/>swaps in FileWriteHandler,<br/>which writes ./downloaded_a.pdf
     N->>B: file bytes, zero-copy<br/>(DefaultFileRegion)
     N-->>U: onProgressUpdated(task) → progress bar
     Note over N: all bytes written → COMPLETED<br/>(no ACK from the receiver)
     N-xB: close connection
-    Note over B: on close: complete if all<br/>bytes arrived, else onError
+    Note over B: on close: COMPLETED if all<br/>bytes arrived, else onError
 ```
 
 ## Getting Started
@@ -129,7 +129,7 @@ The node starts its TCP server, begins advertising itself, and then waits for co
 |---|---|
 | `discover` | Listen for peers on the local network via UDP multicast. |
 | `list` | Show the peers currently known to be active, with their `ip:port` IDs. |
-| `send -p <ip:port> -f <path>` | Send a file to a discovered peer. Quote paths that contain spaces. |
+| `send -p <ip:port> -f <path>` | Send a file to a discovered peer. `<ip:port>` is the peer ID printed by `list`. The peer is looked up by IP address only: the port in the ID is not used, and the file goes to the port from that peer's heartbeat. Quote paths that contain spaces. |
 | `exit` / `quit` | Shut the node down. |
 
 A typical session looks like this:
@@ -140,9 +140,9 @@ airdrop> list
 airdrop> send -p 192.168.1.5:40123 -f "./report.pdf"
 ```
 
-A peer must have been discovered in the current session before a file can be sent to it. Received files are saved to the receiver's working directory as `downloaded_<file name>`. Console messages are in Traditional Chinese.
+A peer must have been discovered in the current session before a file can be sent to it. Received files are saved to the receiver's working directory as `downloaded_<file name>`. Console messages are in Traditional Chinese; the `--help` text is in English.
 
-Each subcommand can also be run on its own, for example `java -jar … --help`. Because the peer list lives in memory, `send` is intended for the interactive shell.
+Passing a command as arguments runs it once and exits, for example `java -jar … discover` or `java -jar … --help`. The node still starts its TCP server and heartbeat first. Because the peer list lives in memory and is filled only by `discover`, `send` works only in the interactive shell.
 
 ## Architecture
 
@@ -152,12 +152,12 @@ The code is organized into Clean Architecture layers, and dependencies point onl
 |---|---|---|
 | Entities | `domain.model` | `Peer` and `FileTask`, the core data and state, with no external dependencies. |
 | Use cases | `usecase` | `DiscoverPeersUseCase` keeps the registry of active peers and evicts stale ones. `SendFileUseCase` validates the target and coordinates a transfer. |
-| Ports | `usecase.port.in` / `usecase.port.out` | `PeerDiscoveryListener` and `FileTransferListener` are callbacks into the core. `NetworkGateway` is the core's abstraction of the network. |
+| Ports | `usecase.port.in` / `usecase.port.out` | `PeerDiscoveryListener` is how the network layer reports peers to the core; `DiscoverPeersUseCase` implements it. `FileTransferListener` reports transfer progress and errors to the caller (`CliController` when sending, `App` when receiving). `NetworkGateway` is the core's abstraction of the network. |
 | Interface adapters | `adapter.controller` | `CliController` translates user commands into use-case calls and renders the results. |
-| Frameworks & drivers | `infrastructure.netty`, `infrastructure.cli` | `NettyNetworkGateway`, `NettyServer` and `NettyClient` implement `NetworkGateway` on top of Netty. `PicocliRunner` defines the command-line interface. |
-| Composition root | `App` | Wires the concrete implementations together (manual dependency injection) and starts the shell. |
+| Frameworks & drivers | `infrastructure.netty`, `infrastructure.cli` | `NettyNetworkGateway` implements `NetworkGateway` on top of Netty. It delegates to `NettyServer` (TCP receive, UDP listener) and `NettyClient` (TCP send, UDP heartbeat). `PicocliRunner` defines the command-line interface. |
+| Composition root | `App` | Wires the concrete implementations together (manual dependency injection), starts the TCP server and the heartbeat, and runs the shell. |
 
-Both the controller and CLI test suites include architecture-guard tests that enforce these boundaries. A sequence diagram of the send flow is in [`docs/architecture/file-transfer-sequence.md`](docs/architecture/file-transfer-sequence.md).
+Both the controller and CLI test suites include architecture-guard tests that use reflection to check these boundaries: `CliController` neither holds nor takes infrastructure types, and `PicocliRunner` holds only a `CliController`. A layer-by-layer sequence diagram of the send flow, including its error paths, is in [`docs/architecture/file-transfer-sequence.md`](docs/architecture/file-transfer-sequence.md).
 
 ## Wire Protocol
 
@@ -182,13 +182,14 @@ The sender closes the connection when the file has been sent. The receiver treat
 ./mvnw test
 ```
 
-The suite contains 77 JUnit 5 and Mockito tests. It covers the use cases, the controller and the CLI (including the architecture guards), the Netty layer, and end-to-end transfers between two in-process nodes. The discovery and end-to-end tests send real multicast traffic, so they depend on the host's network configuration (see [Known Limitations](#known-limitations)).
+The suite contains 80 JUnit 5 and Mockito tests. It covers peer discovery and eviction in `DiscoverPeersUseCase`, the controller and the CLI (including the architecture guards), the Netty layer (including the TCP receive path), and discovery plus a file transfer between two in-process nodes. `SendFileUseCase` is exercised only by that end-to-end test. The three tests that rely on discovery send real multicast traffic, so they depend on the host's network configuration and can fail on hosts affected by the interface-selection limitation in [Known Limitations](#known-limitations).
 
 ## Known Limitations
 
 - **Trusted networks only.** Peers are not authenticated and transfers are not encrypted.
-- **Received file names are used as sent.** The receiver does not yet sanitize the incoming file name before writing to disk.
-- **Interface selection.** Discovery binds to the first active, multicast-capable IPv4 interface. On hosts that also have VPN or container interfaces (such as Tailscale or Docker bridges), that may not be the LAN interface, and peers will not be found.
+- **Received file names are used as sent.** The receiver does not yet sanitize the incoming file name before writing to disk, and it overwrites an existing `downloaded_<file name>`.
+- **Interface selection.** The discovery listener joins the multicast group on the first active, multicast-capable, non-loopback IPv4 interface that Java reports. Heartbeats are not tied to that interface; they leave through whichever interface the operating system routes `224.0.0.167` to. On hosts that also have VPN or container interfaces (such as Tailscale or Docker bridges), the listener may join on one of those instead of the LAN interface, and peers will not be found.
+- **One node per IP address.** `send` selects the target by IP address only, so if two nodes run on the same host, the file goes to whichever one the peer table returns first.
 - **One file per transfer, sent over a single stream.** Transfers cannot be resumed and are not verified with a checksum.
 
 ## Future Work
