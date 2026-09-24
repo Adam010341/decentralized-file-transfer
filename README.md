@@ -1,5 +1,12 @@
 # LAN P2P File Transfer
 
+![Java](https://img.shields.io/badge/language-Java%2017-ED8B00?logo=openjdk&logoColor=white)
+![Netty](https://img.shields.io/badge/networking-Netty%204.1-555)
+![CLI](https://img.shields.io/badge/CLI-Picocli%204.7-555)
+![Build](https://img.shields.io/badge/build-Maven-C71A36?logo=apachemaven&logoColor=white)
+![Tests](https://img.shields.io/badge/tests-JUnit%205%20%2B%20Mockito-25A162)
+![License](https://img.shields.io/badge/license-MIT-2ea44f)
+
 A zero-configuration, peer-to-peer file transfer tool for local networks, in the spirit of AirDrop. Peers find each other automatically over UDP multicast and exchange files directly over TCP. There is no central server and no manual IP entry.
 
 Built in Java 17 with [Netty](https://netty.io/) for asynchronous networking and [Picocli](https://picocli.info/) for the command-line interface. The code follows Clean Architecture. This was the final project for a Software Engineering course at National Cheng Kung University (NCKU).
