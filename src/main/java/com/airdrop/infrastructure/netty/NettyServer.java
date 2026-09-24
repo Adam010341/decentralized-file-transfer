@@ -218,6 +218,7 @@ public class NettyServer {
                 fileChannel.close();
             }
             if (task.getBytesTransferred() >= task.getFileSize()) {
+                task.setStatus(FileTask.Status.COMPLETED);
                 if (listener != null) {
                     listener.onProgressUpdated(task);
                 }

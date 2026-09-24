@@ -78,6 +78,36 @@ public class NettyServerReceiveTest {
     }
 
     @Test
+    public void receiverMarksTaskCompletedWhenAllBytesArrive() throws Exception {
+        byte[] data = randomBytes(16 * 1024);
+        AtomicReference<FileTask> completed = new AtomicReference<>();
+        AtomicReference<String> error = new AtomicReference<>();
+        CountDownLatch done = new CountDownLatch(1);
+
+        server.startTcpServer(0, new FileTransferListener() {
+            @Override
+            public void onProgressUpdated(FileTask task) {
+                if (task.getStatus() == FileTask.Status.COMPLETED) {
+                    completed.set(task);
+                    done.countDown();
+                }
+            }
+
+            @Override
+            public void onError(FileTask task, String errorMessage) {
+                error.set(errorMessage);
+                done.countDown();
+            }
+        });
+
+        send(server.getBoundTcpPort(), fileName, data.length, data);
+
+        assertTrue(done.await(5, TimeUnit.SECONDS), "receiver should mark the task COMPLETED after the sender closes");
+        assertNull(error.get(), "a complete transfer must not be reported as an error");
+        assertEquals(data.length, completed.get().getBytesTransferred());
+    }
+
+    @Test
     public void receiverReportsErrorWhenConnectionClosesEarly() throws Exception {
         byte[] partial = randomBytes(40);
         AtomicReference<FileTask> failed = new AtomicReference<>();
