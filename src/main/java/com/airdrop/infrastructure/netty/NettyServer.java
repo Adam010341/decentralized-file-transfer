@@ -159,7 +159,7 @@ public class NettyServer {
 
                         Peer sender = new Peer(senderName, ((InetSocketAddress)ctx.channel().remoteAddress()).getAddress().getHostAddress(), 0);
                         
-                        FileTask task = new FileTask(taskId, fileName, "./downloaded_" + fileName, fileSize);
+                        FileTask task = new FileTask(taskId, "./downloaded_" + fileName, fileName, fileSize);
                         if (listener != null) {
                             listener.onProgressUpdated(task);
                         }
