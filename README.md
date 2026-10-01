@@ -7,23 +7,23 @@
 ![Tests](https://img.shields.io/badge/tests-JUnit%205%20%2B%20Mockito-25A162)
 ![License](https://img.shields.io/badge/license-MIT-2ea44f)
 
-A zero-configuration peer-to-peer file transfer tool for local networks, in the spirit of AirDrop. Peers find each other over UDP multicast and exchange files directly over TCP. No central server; you pick the receiver from the list of discovered peers.
+A zero-configuration peer-to-peer file transfer tool for local networks, in the spirit of AirDrop. Peers find each other over UDP multicast and send files directly over TCP. There is no central server. You pick the receiver from the discovered peers.
 
-Built in Java 17 with [Netty](https://netty.io/) and [Picocli](https://picocli.info/). Final project for a Software Engineering course at National Cheng Kung University (NCKU).
+Written in Java 17 with [Netty](https://netty.io/) and [Picocli](https://picocli.info/). Final project for a Software Engineering course at National Cheng Kung University (NCKU).
 
 ## Features
 
-- **Peer discovery.** Every node multicasts a heartbeat every 2 seconds. Peers not heard from for more than 10 seconds are dropped at the next check, which runs every 5 seconds.
-- **Zero-copy transfer.** The sender streams the file with Netty's `DefaultFileRegion`, so on supported platforms the kernel moves bytes from file to socket without copying them into user space.
-- **Progress reporting** on both the sender and the receiver.
-- **Two modes.** An interactive shell keeps the node online; a one-shot mode runs a single command and exits.
-- **No configuration.** The OS assigns the TCP port and it is advertised in the heartbeat.
+- Peer discovery: every node multicasts a heartbeat every 2 seconds. Peers silent for more than 10 seconds are dropped at the next check (every 5 seconds).
+- Zero-copy transfer with Netty's `DefaultFileRegion`. On supported platforms the kernel moves bytes from file to socket directly.
+- Progress shown on both sender and receiver.
+- Interactive shell, or a one-shot mode that runs one command and exits.
+- No configuration. The OS assigns the TCP port and the heartbeat advertises it.
 
 A Windows desktop build with a Swing GUI is published as the [v1.0.0 release](https://github.com/Adam010341/decentralized-file-transfer/releases/tag/v1.0.0). The GUI source is on the `feat/DesktopApp` branch; `main` has the command-line application.
 
 ## How It Works
 
-Every node runs a TCP server on an OS-assigned port and multicasts a heartbeat advertising it. `discover` joins the multicast group and fills an in-memory peer table. The diagram shows Peer A sending a file to Peer B. Dotted arrows are UDP discovery; the thick arrow is the TCP transfer.
+Each node runs a TCP server on an OS-assigned port and multicasts a heartbeat with that port. `discover` joins the multicast group and fills an in-memory peer table. Below, Peer A sends a file to Peer B. Dotted arrows are UDP, the thick arrow is TCP.
 
 ```mermaid
 flowchart TB
@@ -60,7 +60,7 @@ flowchart TB
     SENDER ==>|"TCP to ip:tcpPort<br/>header, then file via<br/>DefaultFileRegion"| DEC
 ```
 
-Byte formats are in [Wire Protocol](#wire-protocol). A layer-by-layer sequence diagram of the send flow, including error paths, is in [`docs/architecture/file-transfer-sequence.md`](docs/architecture/file-transfer-sequence.md).
+Byte formats are under Wire Protocol. A sequence diagram of the send flow with error paths is in [`docs/architecture/file-transfer-sequence.md`](docs/architecture/file-transfer-sequence.md).
 
 ## Getting Started
 
@@ -92,7 +92,7 @@ Passing a command as arguments runs it once and exits (`java -jar ... --help`). 
 
 ## Architecture
 
-Clean Architecture layers, with dependencies pointing inward. The core knows nothing about Netty, Picocli or the terminal; it uses port interfaces that the outer layers implement.
+Clean Architecture layers, dependencies pointing inward. The core has no Netty, Picocli or terminal code and talks to the outside through port interfaces.
 
 | Layer | Package | Responsibility |
 |---|---|---|
@@ -103,24 +103,24 @@ Clean Architecture layers, with dependencies pointing inward. The core knows not
 | Infrastructure | `infrastructure.netty`, `infrastructure.cli` | `NettyNetworkGateway` (over `NettyServer` and `NettyClient`), `PicocliRunner` |
 | Composition root | `App` | Manual dependency injection, starts the server and heartbeat, runs the shell |
 
-Reflection-based architecture-guard tests check these boundaries.
+Reflection-based tests check these boundaries.
 
 ## Wire Protocol
 
-**Discovery (UDP).** Every 2 seconds each node sends to `224.0.0.167:53333`:
+Discovery (UDP): every 2 seconds each node sends to `224.0.0.167:53333`:
 
 ```text
 AIRDROP_PING:<node name>:<tcp port>
 ```
 
-The receiver takes the peer's IP from the datagram's source address. The node name is the hostname.
+The peer's IP comes from the datagram source address. The node name is the hostname.
 
-**Transfer (TCP).** The sender connects to the advertised port and writes:
+Transfer (TCP): the sender connects to the advertised port and writes:
 
 1. A metadata frame: 4-byte big-endian length, then the UTF-8 string `<task id>|<file name>|<file size>|<sender name>`.
 2. The raw file contents, zero-copy.
 
-The sender then closes the connection. The receiver treats the transfer as complete if it got the declared number of bytes by close, and as failed otherwise.
+The sender then closes the connection. If the receiver has the declared number of bytes by then, the transfer is complete. Otherwise it failed.
 
 ## Testing
 
@@ -128,34 +128,26 @@ The sender then closes the connection. The receiver treats the transfer as compl
 ./mvnw test
 ```
 
-80 JUnit 5 and Mockito tests cover discovery and eviction, the controller and CLI, the Netty layer, and discovery plus a file transfer between two in-process nodes. The three tests that use discovery send real multicast traffic and can fail on hosts affected by the interface-selection limitation below.
+80 JUnit 5 and Mockito tests: discovery and eviction, controller, CLI, the Netty layer, and an end-to-end transfer between two in-process nodes. The three discovery tests send real multicast traffic and can fail on hosts hit by the interface limitation below.
 
 ## Known Limitations
 
 - Trusted networks only: no peer authentication or encryption.
 - The receiver does not sanitize incoming file names and overwrites an existing `downloaded_<file name>`.
-- Interface selection: the discovery listener joins on the first active, multicast-capable, non-loopback IPv4 interface Java reports. With VPN or container interfaces (Tailscale, Docker bridges) it may pick one of those and find no peers.
+- Interface selection: the listener joins on the first active, multicast-capable, non-loopback IPv4 interface Java reports. With Tailscale or Docker bridges present it may pick one of those and find no peers.
 - One node per IP: `send` picks the target by IP only.
 - One file per transfer over a single stream; no resume and no checksum.
 
 ## Future Work
 
-- Parallel, chunked transfer
-- Resumable transfers with integrity checks
-- Peer authentication and encrypted transport
-- Explicit network interface selection
-- Merging the desktop GUI into `main`
-
-## Development Process
-
-The team used feature branches, and every change reached `dev` and `main` through a pull request reviewed by another member. The team also used AI coding assistants; by convention, each AI-assisted pull request records the prompts and requirements it was built from.
+Parallel chunked transfer, resumable transfers with integrity checks, peer authentication and encryption, explicit interface selection, merging the desktop GUI into `main`.
 
 ## Contributors
+
+The team used feature branches, and every change reached `dev` and `main` through a pull request reviewed by another member. The team also used AI coding assistants; by convention, each AI-assisted pull request records the prompts and requirements it was built from.
 
 - [@Adam010341](https://github.com/Adam010341)
 - [@f74131526](https://github.com/f74131526)
 - [@changoscarx](https://github.com/changoscarx)
 
-## License
-
-Released under the [MIT License](LICENSE).
+Licensed under the [MIT License](LICENSE).
